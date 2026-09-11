@@ -2,7 +2,7 @@
 
 ## Start with the documentation
 
-The [AI BuildFlow documentation](https://ai-buildflow.vercel.app/docs/) covers setup,
+The [AI BuildFlow documentation](https://ai-buildflow-dev.vercel.app/docs/) covers setup,
 updates, commands, file behavior, and troubleshooting.
 
 ## Ask a usage question
