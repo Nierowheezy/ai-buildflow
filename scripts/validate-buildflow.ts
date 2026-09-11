@@ -602,7 +602,7 @@ async function validatePackageMetadata(): Promise<void> {
     throw new Error("Package license must be MIT");
   }
 
-  if (metadata.homepage !== "https://ai-buildflow.dev.vercel.app") {
+  if (metadata.homepage !== "https://ai-buildflow.vercel.app") {
     throw new Error("Package homepage must point to the official site");
   }
 

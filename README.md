@@ -17,8 +17,8 @@
 </p>
 
 <p align="center">
-  <a href="https://ai-buildflow.dev.vercel.app">Official site</a> |
-  <a href="https://ai-buildflow.dev.vercel.app/docs/">Documentation</a> |
+  <a href="https://ai-buildflow.vercel.app">Official site</a> |
+  <a href="https://ai-buildflow.vercel.app/docs/">Documentation</a> |
   <a href="https://www.youtube.com/watch?v=L4g6GGLzAyo">Video demo</a> |
   <a href="https://www.npmjs.com/package/create-ai-buildflow">npm</a> |
   <a href="https://github.com/Nierowheezy/ai-buildflow/releases">Releases</a> |
@@ -103,10 +103,10 @@ The interactive installer lets you select one or more adapters. It adds the
 workflow files needed by those tools and leaves your application's `README.md`
 alone.
 
-See [Getting Started](https://ai-buildflow.dev.vercel.app/docs/getting-started/) for the
+See [Getting Started](https://ai-buildflow.vercel.app/docs/getting-started/) for the
 complete installation and onboarding walkthrough. For a project that already
 has shipped features, start with
-[Adopting an Existing Codebase](https://ai-buildflow.dev.vercel.app/docs/existing-codebase/).
+[Adopting an Existing Codebase](https://ai-buildflow.vercel.app/docs/existing-codebase/).
 
 ## The workflow
 
@@ -133,7 +133,7 @@ Other work enters the same control loop:
 - Use `rollback` to reverse a completed feature without erasing its history.
 - Use `try` when you want a human manual-review guide.
 
-Read [Core Workflow](https://ai-buildflow.dev.vercel.app/docs/core-workflow/) for the full
+Read [Core Workflow](https://ai-buildflow.vercel.app/docs/core-workflow/) for the full
 lifecycle and command-specific behavior.
 
 ## Command map
@@ -166,7 +166,7 @@ lifecycle and command-specific behavior.
 
 Codex uses the matching `$skill` form. Other adapters use the invocation style
 shown during installation. Each command has a dedicated page in the
-[documentation](https://ai-buildflow.dev.vercel.app/docs/).
+[documentation](https://ai-buildflow.vercel.app/docs/).
 
 ## File-backed project state
 
@@ -192,8 +192,8 @@ read:
 This state stays tool-independent. A project can move between supported agents
 without moving its plan and history back into chat.
 
-Read [Writing Your Plans](https://ai-buildflow.dev.vercel.app/docs/writing-your-plans/) and
-the [File Reference](https://ai-buildflow.dev.vercel.app/docs/file-reference/) for the
+Read [Writing Your Plans](https://ai-buildflow.vercel.app/docs/writing-your-plans/) and
+the [File Reference](https://ai-buildflow.vercel.app/docs/file-reference/) for the
 detailed contracts.
 
 ## Review and verification
@@ -218,9 +218,9 @@ All quality gates default to manual. Projects can make them conditional or
 required through `buildflow/config.json` without granting permission to merge,
 push, deploy, publish, or waive findings.
 
-Read [Code Quality](https://ai-buildflow.dev.vercel.app/docs/code-quality/),
-[Audit](https://ai-buildflow.dev.vercel.app/docs/commands/audit/), and
-[Project Configuration](https://ai-buildflow.dev.vercel.app/docs/project-configuration/)
+Read [Code Quality](https://ai-buildflow.vercel.app/docs/code-quality/),
+[Audit](https://ai-buildflow.vercel.app/docs/commands/audit/), and
+[Project Configuration](https://ai-buildflow.vercel.app/docs/project-configuration/)
 for the complete rules.
 
 ## Context efficiency
@@ -236,7 +236,7 @@ flags oversized legacy overviews. A controlled Opus 5 test measured 55% less
 startup context and about 36% less Feature context after compacting the overview.
 
 Existing projects keep their own `CLAUDE.md` and configuration during updates.
-Run `/doctor` afterward, then follow the [updating guide](https://ai-buildflow.dev.vercel.app/docs/updating-buildflow/)
+Run `/doctor` afterward, then follow the [updating guide](https://ai-buildflow.vercel.app/docs/updating-buildflow/)
 for any recommended cleanup. Read the [benchmark](benchmarks/context-efficiency.md)
 for the full method, charts, results, and limits.
 
@@ -252,7 +252,7 @@ requests and default-branch pushes. BuildFlow does not invent a test runner,
 coverage target, browser suite, security scan, or version matrix just to fill
 the workflow.
 
-Read [CI Setup](https://ai-buildflow.dev.vercel.app/docs/commands/ci/) for the full contract.
+Read [CI Setup](https://ai-buildflow.vercel.app/docs/commands/ci/) for the full contract.
 
 ## Optional automation
 
@@ -267,8 +267,8 @@ bounded local work while preserving the same gates:
 Neither mode pushes, deploys, publishes, sends messages, performs destructive
 actions, waives findings, or makes uncovered product decisions.
 
-Read [Autopilot](https://ai-buildflow.dev.vercel.app/docs/commands/autopilot/) and
-[Continuous Mode](https://ai-buildflow.dev.vercel.app/docs/commands/continuous/) before
+Read [Autopilot](https://ai-buildflow.vercel.app/docs/commands/autopilot/) and
+[Continuous Mode](https://ai-buildflow.vercel.app/docs/commands/continuous/) before
 using them.
 
 ## Tool support
@@ -285,7 +285,7 @@ Codex, GitHub Copilot, and OpenCode can share `.agents/skills/`. Claude Code
 uses `.claude/skills/`, which OpenCode can also reuse. The installer avoids
 duplicating the same skills under `.opencode/skills/`.
 
-Read [Tool Adapters](https://ai-buildflow.dev.vercel.app/docs/tool-adapters/) for selection,
+Read [Tool Adapters](https://ai-buildflow.vercel.app/docs/tool-adapters/) for selection,
 invocation, and project-layout details.
 
 ## Optional capabilities
@@ -301,7 +301,7 @@ Use only what the project needs:
 - `prototype` creates throwaway static mockups before the build loop.
 - `release` prepares local Render or Vercel configuration and readiness checks.
 
-The [documentation](https://ai-buildflow.dev.vercel.app/docs/) has one page for every
+The [documentation](https://ai-buildflow.vercel.app/docs/) has one page for every
 command, plus guides for testing, configuration, manual review, updating, and
 troubleshooting.
 
@@ -333,20 +333,20 @@ The dashboard binds to `127.0.0.1`, reads the same project files and Git state,
 and stops when you press Ctrl+C. It does not run workflow commands or expose the
 project outside the local machine.
 
-Read [Updating BuildFlow](https://ai-buildflow.dev.vercel.app/docs/updating-buildflow/),
-[CLI Status](https://ai-buildflow.dev.vercel.app/docs/cli/status/), and
-[Local Dashboard](https://ai-buildflow.dev.vercel.app/docs/cli/dashboard/) for details.
+Read [Updating BuildFlow](https://ai-buildflow.vercel.app/docs/updating-buildflow/),
+[CLI Status](https://ai-buildflow.vercel.app/docs/cli/status/), and
+[Local Dashboard](https://ai-buildflow.vercel.app/docs/cli/dashboard/) for details.
 
 ## Documentation
 
-- [Getting Started](https://ai-buildflow.dev.vercel.app/docs/getting-started/)
-- [Core Workflow](https://ai-buildflow.dev.vercel.app/docs/core-workflow/)
-- [Command Reference](https://ai-buildflow.dev.vercel.app/docs/)
-- [Project Configuration](https://ai-buildflow.dev.vercel.app/docs/project-configuration/)
-- [Testing](https://ai-buildflow.dev.vercel.app/docs/testing/)
-- [Manual Review](https://ai-buildflow.dev.vercel.app/docs/manual-review/)
-- [Local-Only Mode](https://ai-buildflow.dev.vercel.app/docs/local-only-mode/)
-- [Troubleshooting](https://ai-buildflow.dev.vercel.app/docs/troubleshooting/)
+- [Getting Started](https://ai-buildflow.vercel.app/docs/getting-started/)
+- [Core Workflow](https://ai-buildflow.vercel.app/docs/core-workflow/)
+- [Command Reference](https://ai-buildflow.vercel.app/docs/)
+- [Project Configuration](https://ai-buildflow.vercel.app/docs/project-configuration/)
+- [Testing](https://ai-buildflow.vercel.app/docs/testing/)
+- [Manual Review](https://ai-buildflow.vercel.app/docs/manual-review/)
+- [Local-Only Mode](https://ai-buildflow.vercel.app/docs/local-only-mode/)
+- [Troubleshooting](https://ai-buildflow.vercel.app/docs/troubleshooting/)
 
 ## Support and contributing
 

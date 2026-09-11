@@ -12,8 +12,8 @@ history stay as readable files in your repository.
 [![Validate BuildFlow](https://github.com/Nierowheezy/ai-buildflow/actions/workflows/validate.yml/badge.svg)](https://github.com/Nierowheezy/ai-buildflow/actions/workflows/validate.yml)
 [![MIT license](https://img.shields.io/npm/l/create-ai-buildflow?style=flat-square&color=155eef)](LICENSE)
 
-[Official site](https://ai-buildflow.dev.vercel.app) |
-[Documentation](https://ai-buildflow.dev.vercel.app/docs/) |
+[Official site](https://ai-buildflow.vercel.app) |
+[Documentation](https://ai-buildflow.vercel.app/docs/) |
 [Repository](https://github.com/Nierowheezy/ai-buildflow) |
 [Changelog](https://github.com/Nierowheezy/ai-buildflow/blob/main/CHANGELOG.md)
 
@@ -290,7 +290,7 @@ updates.
 
 ## Help and contributing
 
-- Read the [full documentation](https://ai-buildflow.dev.vercel.app/docs/).
+- Read the [full documentation](https://ai-buildflow.vercel.app/docs/).
 - Report reproducible problems through the repository's
   [issue forms](https://github.com/Nierowheezy/ai-buildflow/issues/new/choose).
 - Follow the repository's
