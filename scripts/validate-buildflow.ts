@@ -1,0 +1,711 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import {
+  createDefaultProjectConfig,
+  parseProjectConfig
+} from "../packages/create-ai-buildflow/lib/project-config.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, "..");
+const codexSkillsRoot = path.join(repoRoot, ".agents", "skills");
+const claudeSkillsRoot = path.join(repoRoot, ".claude", "skills");
+const currentFeatureStub = `# Current Feature
+
+> **Generated file.** Holds the one feature, fix, or rollback being built right now. Run
+> \`/feature <number-or-name>\` to spec a build-plan feature, or \`/fix "<bug>"\` for
+> an ad-hoc fix. Use \`/rollback <completed-feature>\` to plan a safe reversal.
+> Build one thing at a time; \`/complete\` archives it under
+> \`buildflow/history/\` and resets this file.
+
+_Nothing in progress. Run \`/feature\`, \`/fix\`, or \`/rollback\` to start._
+`;
+const findingsStub = `# Findings
+
+> **Generated file.** The findings ledger: review findings raised by \`/audit\`
+> against the work in progress, each with a durable ID, severity (P0-P3), and
+> status. \`/implement\` marks repaired findings \`fixed\`, a later \`/audit\` pass
+> moves them to \`closed\`, and \`/complete\` refuses to merge while any P0 or P1
+> finding is \`open\` or \`fixed\`, then archives resolved findings with the work
+> and resets this file.
+
+_No findings recorded. \`/audit\` appends findings here when it finds them._
+`;
+const reviewStub = `# Independent Review
+
+> **Generated file.** Holds the active independent-review request or latest
+> receipt for the current work item. \`/audit independent current\` prepares a
+> handoff against an approved checkpoint, a fresh reviewer session completes it,
+> and \`/complete\` refuses stale, pending, or changes-requested review state.
+
+_No independent review requested. Run \`/audit independent current\` to prepare one._
+`;
+const requiredPaths = [
+  "AGENTS.md",
+  "CLAUDE.md",
+  "CHANGELOG.md",
+  "CODE_OF_CONDUCT.md",
+  "CONTRIBUTING.md",
+  "LICENSE",
+  "README.md",
+  "SECURITY.md",
+  "SUPPORT.md",
+  ".github/ISSUE_TEMPLATE/bug_report.yml",
+  ".github/ISSUE_TEMPLATE/config.yml",
+  ".github/ISSUE_TEMPLATE/feature_request.yml",
+  ".github/ISSUE_TEMPLATE/question.yml",
+  ".github/PULL_REQUEST_TEMPLATE.md",
+  ".github/release.yml",
+  ".github/workflows/publish.yml",
+  ".github/workflows/validate.yml",
+  "assets/mark-dark.svg",
+  "assets/mark-light.svg",
+  "assets/social-preview.png",
+  "assets/social-preview.svg",
+  "buildflow/build-plan.md",
+  "buildflow/config.json",
+  "buildflow/project-plan.md",
+  "buildflow/context/ai-interaction.md",
+  "buildflow/context/coding-standards.md",
+  "buildflow/context/current-feature.md",
+  "buildflow/context/findings.md",
+  "buildflow/context/review.md",
+  "buildflow/context/project-overview.md",
+  "buildflow/history/features/README.md",
+  "buildflow/history/fixes/README.md",
+  "buildflow/history/rollbacks/README.md",
+  "packages/create-ai-buildflow/bin/create-ai-buildflow.ts",
+  "packages/create-ai-buildflow/LICENSE",
+  "packages/create-ai-buildflow/lib/update.ts",
+  "packages/create-ai-buildflow/package.json"
+];
+
+function errorCode(error: unknown): string | undefined {
+  return typeof error === "object" && error !== null && typeof (error as { code?: unknown }).code === "string"
+    ? (error as { code: string }).code
+    : undefined;
+}
+
+function parseRecord(content: string, source: string): Record<string, unknown> {
+  const parsed: unknown = JSON.parse(content);
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`${source} must contain a JSON object`);
+  }
+
+  return parsed as Record<string, unknown>;
+}
+
+function stringArray(value: unknown): string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
+}
+
+async function main(): Promise<void> {
+  await validateRequiredPaths();
+  await validateProjectConfig();
+
+  const codexFiles = await listFiles(codexSkillsRoot);
+  const claudeFiles = await listFiles(claudeSkillsRoot);
+  assertEqualLists(codexFiles, claudeFiles, "adapter file inventory");
+
+  for (const relativePath of codexFiles) {
+    const codexFile = path.join(codexSkillsRoot, ...relativePath.split("/"));
+    const claudeFile = path.join(claudeSkillsRoot, ...relativePath.split("/"));
+    const [codexContent, claudeContent] = await Promise.all([
+      fs.readFile(codexFile),
+      fs.readFile(claudeFile)
+    ]);
+
+    if (!codexContent.equals(claudeContent)) {
+      throw new Error(`Adapter files differ: ${relativePath}`);
+    }
+  }
+
+  const skills = await getSkillNames(codexSkillsRoot);
+  await validateSkillMetadata(skills);
+  await validateCommandInventories(skills);
+  await validateDashboardActivityContract(skills);
+  await validateVerificationContract();
+  await validateCanonicalStubs();
+  await validateRepositoryPolish();
+  const importCount = await validateClaudeImports();
+  const referenceCount = await validateSkillReferences(codexFiles);
+  await validatePackageMetadata();
+
+  console.log(
+    `Static contract passed: ${skills.length} skills, ${codexFiles.length} adapter files, ${importCount} Claude imports, ${referenceCount} skill references.`
+  );
+}
+
+async function validateProjectConfig(): Promise<void> {
+  const configPath = path.join(repoRoot, "buildflow", "config.json");
+  const config = parseProjectConfig(
+    JSON.parse(await fs.readFile(configPath, "utf8"))
+  );
+
+  if (JSON.stringify(config) !== JSON.stringify(createDefaultProjectConfig())) {
+    throw new Error("buildflow/config.json must contain the complete default config");
+  }
+}
+
+async function validateRequiredPaths(): Promise<void> {
+  for (const relativePath of requiredPaths) {
+    await requirePath(path.join(repoRoot, ...relativePath.split("/")), relativePath);
+  }
+}
+
+async function listFiles(root: string): Promise<string[]> {
+  const files: string[] = [];
+
+  async function visit(current: string, relative: string): Promise<void> {
+    const entries = await fs.readdir(current, { withFileTypes: true });
+
+    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+      const absolutePath = path.join(current, entry.name);
+      const relativePath = relative ? `${relative}/${entry.name}` : entry.name;
+      const stats = await fs.lstat(absolutePath);
+
+      if (stats.isSymbolicLink()) {
+        throw new Error(`Symbolic links are not allowed in adapter skills: ${relativePath}`);
+      }
+
+      if (stats.isDirectory()) {
+        await visit(absolutePath, relativePath);
+      } else if (stats.isFile()) {
+        files.push(relativePath);
+      } else {
+        throw new Error(`Unsupported adapter entry: ${relativePath}`);
+      }
+    }
+  }
+
+  await visit(root, "");
+  return files.sort();
+}
+
+async function getSkillNames(root: string): Promise<string[]> {
+  const entries = await fs.readdir(root, { withFileTypes: true });
+  const skills: string[] = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      throw new Error(`Unexpected entry in skills directory: ${entry.name}`);
+    }
+
+    await requirePath(path.join(root, entry.name, "SKILL.md"), `${entry.name}/SKILL.md`);
+    skills.push(entry.name);
+  }
+
+  return skills.sort();
+}
+
+async function validateSkillMetadata(skills: readonly string[]): Promise<void> {
+  let totalDescriptionCharacters = 0;
+
+  for (const skill of skills) {
+    const skillFile = path.join(codexSkillsRoot, skill, "SKILL.md");
+    const content = await fs.readFile(skillFile, "utf8");
+    const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+
+    if (!frontmatter) {
+      throw new Error(`Missing frontmatter: .agents/skills/${skill}/SKILL.md`);
+    }
+
+    const name = frontmatter[1].match(/^name:\s*(.+)$/m)?.[1]?.trim();
+    const description = frontmatter[1].match(/^description:\s*(.+)$/m)?.[1]?.trim();
+
+    if (name !== skill) {
+      throw new Error(`Skill name does not match its directory: ${skill}`);
+    }
+
+    if (name.length > 64 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) {
+      throw new Error(`Skill name is not portable to OpenCode: ${skill}`);
+    }
+
+    if (!description) {
+      throw new Error(`Skill description is missing: ${skill}`);
+    }
+
+    if (description.length > 400) {
+      throw new Error(`Skill description exceeds the context budget: ${skill}`);
+    }
+
+    totalDescriptionCharacters += description.length;
+  }
+
+  if (totalDescriptionCharacters > 7500) {
+    throw new Error(
+      `Skill descriptions exceed the 7,500-character context budget: ${totalDescriptionCharacters}`
+    );
+  }
+}
+
+async function validateCommandInventories(skills: readonly string[]): Promise<void> {
+  const [agents, readme] = await Promise.all([
+    fs.readFile(path.join(repoRoot, "AGENTS.md"), "utf8"),
+    fs.readFile(path.join(repoRoot, "README.md"), "utf8")
+  ]);
+  const coreBlock = agents.match(/Core skills:\r?\n([\s\S]*?)\r?\nIn Codex/);
+
+  if (!coreBlock) {
+    throw new Error("Could not find the Core skills inventory in AGENTS.md");
+  }
+
+  const agentSkills = [...coreBlock[1].matchAll(/^- `([a-z0-9-]+)`/gm)].map(
+    (match) => match[1]
+  );
+  const optionalSkills = [
+    ...agents.matchAll(/Optional explicit-only skill: `([a-z0-9-]+)`/g)
+  ].map((match) => match[1]);
+  const readmeSkills = [
+    ...readme.matchAll(/^\| \*\*\/([a-z0-9-]+)\*\* \|/gm)
+  ].map((match) => match[1]);
+
+  assertEqualLists(skills, [...agentSkills, ...optionalSkills].sort(), "AGENTS.md commands");
+  assertEqualLists(skills, readmeSkills.sort(), "README command table");
+}
+
+async function validateDashboardActivityContract(skills: readonly string[]): Promise<void> {
+  const agents = await fs.readFile(path.join(repoRoot, "AGENTS.md"), "utf8");
+  const trackedBlock = agents.match(
+    /Commands with meaningful progress or a durable handoff should write it when the\s+state directory exists:([\s\S]*?)\. Short/
+  );
+
+  if (!trackedBlock) {
+    throw new Error("Could not find the dashboard activity command inventory in AGENTS.md");
+  }
+
+  const trackedSkills = [...trackedBlock[1].matchAll(/`([a-z0-9-]+)`/g)].map(
+    (match) => match[1]
+  );
+  const knownSkills = new Set(skills);
+  const directive = "**First action:** Before project inspection, preflight, or any other tool call,";
+
+  for (const skill of trackedSkills) {
+    if (!knownSkills.has(skill)) {
+      throw new Error(`Dashboard activity references an unknown skill: ${skill}`);
+    }
+
+    const content = await fs.readFile(path.join(codexSkillsRoot, skill, "SKILL.md"), "utf8");
+    if (!content.includes(directive)) {
+      throw new Error(`Tracked skill does not publish immediate dashboard activity: ${skill}`);
+    }
+  }
+}
+
+async function validateVerificationContract(): Promise<void> {
+  const requirements = new Map([
+    [
+      ".agents/skills/onboard/SKILL.md",
+      [
+        "Run /ci or $ci when you want automatic GitHub checks.",
+        "`/discovery` is optional and never runs as part of onboarding",
+        "Efficient (Recommended)",
+        "Guided",
+        "Custom",
+        "Never write an `implementationStyle` key",
+        "A later `/implement` run reads the current configuration"
+      ]
+    ],
+    [
+      ".agents/skills/discovery/SKILL.md",
+      [
+        "This skill is always optional",
+        "Never start it automatically from `/onboard`",
+        "Do not write either file in the same response that first presents them",
+        "stop before generating `buildflow/context/project-overview.md`"
+      ]
+    ],
+    [
+      ".agents/skills/overview/SKILL.md",
+      [
+        "Discovery is not a gate",
+        "Never require `/discovery`",
+        "Never create this commit silently",
+        "Create the initial planning baseline commit now? (Recommended)",
+        "chore: establish BuildFlow project baseline",
+        "Do not offer this baseline on later overview reruns once `HEAD` already contains",
+        "overview must remain below 20,000 bytes"
+      ]
+    ],
+    [
+      ".agents/skills/adopt/SKILL.md",
+      ["Run /ci or $ci when you want automatic GitHub checks."]
+    ],
+    [
+      ".agents/skills/ci/SKILL.md",
+      [
+        ".github/workflows/verify.yml",
+        "permissions: contents: read",
+        "Never push or change a remote ruleset"
+      ]
+    ],
+    [
+      ".agents/skills/tests/SKILL.md",
+      ["add the real test command", "never creates a GitHub workflow on its own"]
+    ],
+    [
+      ".agents/skills/browser-tests/SKILL.md",
+      [
+        "Browser tests: <command>",
+        "Do not add browser tests to the default Verify command",
+        "Continuous needs no separate browser mode",
+        "It does not replace live browser inspection"
+      ]
+    ],
+    [
+      ".agents/skills/implement/SKILL.md",
+      [
+        "declares a `Verify` command, run that exact",
+        "fallback build and tests",
+        "both values match `^[0-9a-f]{40}$`",
+        "verify it has exactly one parent",
+        "Stop on a merge target",
+        "resolved parent exactly equals `Target parent`",
+        "Use only the resolved full SHA values"
+      ]
+    ],
+    [
+      ".agents/skills/audit/SKILL.md",
+      [
+        "`/audit independent current` is a two-session workflow",
+        "Never let a builder complete its own independent request",
+        "A stale receipt is no receipt"
+      ]
+    ],
+    [
+      ".agents/skills/audit/reference/independent-review.md",
+      [
+        "**Target commit:** <full 40-character checkpoint SHA>",
+        "**Base ref:** <local branch or remote-tracking ref used for the merge base>",
+        "**Reviewer context:** fresh session",
+        "**Check result:** <passed, failed, unavailable, or not-required>",
+        "cannot cryptographically prove"
+      ]
+    ],
+    [
+      ".agents/skills/complete/SKILL.md",
+      [
+        "exact `Verify` command from `AGENTS.md`",
+        "fallback build and tests",
+        "Keep every unresolved entry in the ledger",
+        "A `fixed` entry is not resolved at any severity",
+        "must remain verbatim for a later `/audit` re-review",
+        "replace `buildflow/context/current-feature.md` with the canonical stub below",
+        "Never merge with a required or explicitly initiated independent review"
+      ]
+    ],
+    [
+      ".agents/skills/rollback/SKILL.md",
+      [
+        "target commit and parent commit as full 40-character SHA values",
+        "stop before Step 2 and before",
+        "writing or changing `buildflow/context/current-feature.md`",
+        "Publish `blocked` to",
+        "Do not record a target parent or choose a mainline",
+        "retains its merge-target stop as defense in depth"
+      ]
+    ],
+    [
+      ".agents/skills/rollback/reference/rollback-spec-template.md",
+      [
+        "**Target commit:** `<full 40-character commit SHA>`",
+        "**Target parent:** `<full 40-character parent SHA>`"
+      ]
+    ],
+    [
+      ".agents/skills/doctor/SKILL.md",
+      [
+        "missing `Verify` command or GitHub workflow is informational",
+        "At or above 20,000 bytes, call it oversized"
+      ]
+    ],
+    [
+      ".agents/skills/autopilot/SKILL.md",
+      ["exact `Verify` command from `AGENTS.md`"]
+    ],
+    [
+      ".agents/skills/continuous/SKILL.md",
+      [
+        "Run the exact documented `Verify` command",
+        "one clean local main commit per completed feature",
+        "Never push the default branch"
+      ]
+    ],
+    ["AGENTS.md", ["## Automatic verification", "`contents: read`"]],
+    ["README.md", ["## Automatic GitHub checks", "**Verify is the recipe.**"]],
+    [
+      "buildflow/context/coding-standards.md",
+      ["treat it as the umbrella automated"]
+    ],
+    [
+      "buildflow/context/ai-interaction.md",
+      [
+        "run that exact command as the final automated gate",
+        "Continuous Mode also exists only as an explicit opt-in command",
+        "The initial Overview baseline also requires explicit approval"
+      ]
+    ],
+    [
+      "packages/create-ai-buildflow/README.md",
+      [
+        "optional `/ci` or `$ci` skill",
+        "offers a reviewed local commit for the BuildFlow setup and plans"
+      ]
+    ]
+  ]);
+
+  for (const [relativePath, phrases] of requirements) {
+    const content = await fs.readFile(path.join(repoRoot, relativePath), "utf8");
+    const normalizedContent = content.replace(/\s+/g, " ");
+
+    for (const phrase of phrases) {
+      const normalizedPhrase = phrase.replace(/\s+/g, " ");
+
+      if (!normalizedContent.includes(normalizedPhrase)) {
+        throw new Error(`Verification contract missing from ${relativePath}: ${phrase}`);
+      }
+    }
+  }
+}
+
+async function validateCanonicalStubs(): Promise<void> {
+  const [currentFeature, findings, review, completeSkill] = await Promise.all([
+    fs.readFile(path.join(repoRoot, "buildflow/context/current-feature.md"), "utf8"),
+    fs.readFile(path.join(repoRoot, "buildflow/context/findings.md"), "utf8"),
+    fs.readFile(path.join(repoRoot, "buildflow/context/review.md"), "utf8"),
+    fs.readFile(path.join(codexSkillsRoot, "complete", "SKILL.md"), "utf8")
+  ]);
+
+  if (normalizeEol(currentFeature) !== currentFeatureStub) {
+    throw new Error("Current feature stub must exactly match the canonical content and final newline");
+  }
+
+  if (normalizeEol(findings) !== findingsStub) {
+    throw new Error("Findings stub must exactly match the canonical content and final newline");
+  }
+
+  if (normalizeEol(review) !== reviewStub) {
+    throw new Error("Independent review stub must exactly match the canonical content and final newline");
+  }
+
+  if (!normalizeEol(completeSkill).includes(indentMarkdownBlock(currentFeatureStub))) {
+    throw new Error("Complete skill must embed the canonical current feature stub");
+  }
+
+  if (!normalizeEol(completeSkill).includes(indentMarkdownBlock(findingsStub))) {
+    throw new Error("Complete skill must embed the canonical findings stub");
+  }
+  if (!normalizeEol(completeSkill).includes(indentMarkdownBlock(reviewStub))) {
+    throw new Error("Complete skill must embed the canonical independent review stub");
+  }
+}
+
+// Markdown is not pinned in .gitattributes, so Windows checkouts see CRLF here.
+function normalizeEol(content: string): string {
+  return content.replaceAll("\r\n", "\n");
+}
+
+function indentMarkdownBlock(content: string): string {
+  return content
+    .split("\n")
+    .map((line) => (line ? `    ${line}` : ""))
+    .join("\n");
+}
+
+async function validateClaudeImports(): Promise<number> {
+  const content = await fs.readFile(path.join(repoRoot, "CLAUDE.md"), "utf8");
+  const imports = [...content.matchAll(/^@(.+)$/gm)].map((match) => match[1].trim());
+  const expectedImports = [
+    "AGENTS.md",
+    "buildflow/context/project-overview.md",
+    "buildflow/context/current-feature.md"
+  ];
+
+  assertEqualLists(imports, expectedImports, "Claude core imports");
+
+  for (const relativePath of imports) {
+    assertSafeRelativePath(relativePath);
+    await requirePath(
+      path.join(repoRoot, ...relativePath.split("/")),
+      `CLAUDE.md import ${relativePath}`
+    );
+  }
+
+  return imports.length;
+}
+
+async function validateSkillReferences(adapterFiles: readonly string[]): Promise<number> {
+  let count = 0;
+
+  for (const relativePath of adapterFiles.filter((file) => file.endsWith("SKILL.md"))) {
+    const skillFile = path.join(codexSkillsRoot, ...relativePath.split("/"));
+    const content = await fs.readFile(skillFile, "utf8");
+    const references = [
+      ...content.matchAll(/`(reference\/[A-Za-z0-9._/-]+)`/g)
+    ].map((match) => match[1]);
+
+    for (const reference of new Set(references)) {
+      assertSafeRelativePath(reference);
+      await requirePath(
+        path.join(path.dirname(skillFile), ...reference.split("/")),
+        `${relativePath} reference ${reference}`
+      );
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+async function validatePackageMetadata(): Promise<void> {
+  const packageRoot = path.join(repoRoot, "packages", "create-ai-buildflow");
+  const metadata = parseRecord(
+    await fs.readFile(path.join(packageRoot, "package.json"), "utf8"),
+    "Package metadata"
+  );
+  const requiredFiles = [
+    "dist/",
+    "template/",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ];
+  const requiredScripts = ["test", "prepare-template", "prepack", "postpack"];
+
+  const bin = typeof metadata.bin === "object" && metadata.bin !== null
+    ? metadata.bin as Record<string, unknown>
+    : {};
+  const packageFiles = stringArray(metadata.files);
+  const scripts = typeof metadata.scripts === "object" && metadata.scripts !== null
+    ? metadata.scripts as Record<string, unknown>
+    : {};
+
+  if (bin["create-ai-buildflow"] !== "dist/bin/create-ai-buildflow.js") {
+    throw new Error("Package bin entry does not point to the installer CLI");
+  }
+
+  for (const requiredFile of requiredFiles) {
+    if (!packageFiles.includes(requiredFile)) {
+      throw new Error(`Required package entry is missing: ${requiredFile}`);
+    }
+  }
+
+  for (const script of requiredScripts) {
+    if (typeof scripts[script] !== "string" || scripts[script].length === 0) {
+      throw new Error(`Package script is missing: ${script}`);
+    }
+  }
+
+  if (metadata.license !== "MIT") {
+    throw new Error("Package license must be MIT");
+  }
+
+  if (metadata.homepage !== "https://ai-buildflow.dev.vercel.app") {
+    throw new Error("Package homepage must point to the official site");
+  }
+
+  if (metadata.author !== "Olabode Olaniyi") {
+    throw new Error("Package author metadata is missing");
+  }
+
+  for (const keyword of [
+    "ai-coding",
+    "claude-code",
+    "context-engineering",
+    "spec-driven-development"
+  ]) {
+    if (!stringArray(metadata.keywords).includes(keyword)) {
+      throw new Error(`Package keyword is missing: ${keyword}`);
+    }
+  }
+
+}
+
+async function validateRepositoryPolish(): Promise<void> {
+  const [rootLicense, packageLicense, packageMetadata, changelog, publishWorkflow] =
+    await Promise.all([
+      fs.readFile(path.join(repoRoot, "LICENSE")),
+      fs.readFile(path.join(repoRoot, "packages", "create-ai-buildflow", "LICENSE")),
+      fs.readFile(
+        path.join(repoRoot, "packages", "create-ai-buildflow", "package.json"),
+        "utf8"
+      ),
+      fs.readFile(path.join(repoRoot, "CHANGELOG.md"), "utf8"),
+      fs.readFile(path.join(repoRoot, ".github", "workflows", "publish.yml"), "utf8")
+    ]);
+
+  if (!rootLicense.equals(packageLicense)) {
+    throw new Error("Root and npm package license files differ");
+  }
+
+  const version = parseRecord(packageMetadata, "Package metadata").version;
+
+  if (typeof version !== "string") {
+    throw new Error("Package metadata has no valid version");
+  }
+
+  if (!changelog.includes(`## [${version}]`)) {
+    throw new Error(`CHANGELOG.md does not include package version ${version}`);
+  }
+
+  if (!publishWorkflow.includes("gh release create")) {
+    throw new Error("Publish workflow does not create a GitHub release");
+  }
+
+  const preview = await fs.readFile(path.join(repoRoot, "assets", "social-preview.png"));
+
+  if (preview.length >= 1_000_000) {
+    throw new Error("Social preview must remain under 1 MB");
+  }
+
+  if (
+    preview.toString("ascii", 1, 4) !== "PNG" ||
+    preview.readUInt32BE(16) !== 1280 ||
+    preview.readUInt32BE(20) !== 640
+  ) {
+    throw new Error("Social preview must be a 1280x640 PNG");
+  }
+}
+
+async function requirePath(absolutePath: string, label: string): Promise<void> {
+  try {
+    await fs.access(absolutePath);
+  } catch (error: unknown) {
+    if (errorCode(error) === "ENOENT") {
+      throw new Error(`Required path is missing: ${label}`);
+    }
+
+    throw error;
+  }
+}
+
+function assertEqualLists(expected: readonly string[], actual: readonly string[], label: string): void {
+  if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+    throw new Error(
+      `${label} mismatch. Expected [${expected.join(", ")}], received [${actual.join(", ")}].`
+    );
+  }
+}
+
+function assertSafeRelativePath(relativePath: string): void {
+  const normalized = path.posix.normalize(relativePath.replaceAll("\\", "/"));
+
+  if (
+    normalized !== relativePath ||
+    normalized === "." ||
+    normalized === ".." ||
+    normalized.startsWith("../") ||
+    path.posix.isAbsolute(normalized)
+  ) {
+    throw new Error(`Unsafe repository reference: ${relativePath}`);
+  }
+}
+
+main().catch((error: unknown) => {
+  console.error(
+    `Static contract failed: ${error instanceof Error ? error.message : String(error)}`
+  );
+  process.exit(1);
+});

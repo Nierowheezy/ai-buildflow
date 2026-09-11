@@ -1,0 +1,32 @@
+{
+  "name": "ai-buildflow-maintainer",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Maintainer validation commands for AI BuildFlow.",
+  "type": "module",
+  "scripts": {
+    "check": "npm run typecheck && tsx scripts/check-buildflow.ts",
+    "check:static": "tsx scripts/validate-buildflow.ts",
+    "link:local": "tsx scripts/link-local.ts",
+    "unlink:local": "tsx scripts/link-local.ts --undo",
+    "test": "npm --prefix packages/create-ai-buildflow test",
+    "test:routing": "tsx --test scripts/evals/routing.test.ts && tsx scripts/evals/routing.ts --min-rank1 90",
+    "test:sandbox": "tsx --test scripts/scaffold-sandbox.test.ts scripts/clear-sandbox.test.ts",
+    "test:package": "tsx scripts/smoke-package.ts",
+    "test:e2e": "tsx scripts/e2e/run.ts",
+    "sandbox": "tsx scripts/scaffold-sandbox.ts",
+    "sandbox:clear": "tsx scripts/clear-sandbox.ts",
+    "sandbox:demo": "tsx scripts/scaffold-sandbox.ts --demo-plan",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@inquirer/checkbox": "^4.2.4",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^6.0.2"
+  }
+}

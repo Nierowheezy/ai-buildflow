@@ -1,0 +1,305 @@
+# create-ai-buildflow
+
+AI BuildFlow is a file-backed control system for AI-assisted development. It
+gives coding agents a shared workflow to plan, build, verify, and document one
+feature at a time, with human review gates before code changes and merges.
+
+It works with any stack and installs inside an app you have already scaffolded.
+Plans, specs, project context, findings, configuration, and completed-work
+history stay as readable files in your repository.
+
+[![npm version](https://img.shields.io/npm/v/create-ai-buildflow?style=flat-square&color=155eef)](https://www.npmjs.com/package/create-ai-buildflow)
+[![Validate BuildFlow](https://github.com/Nierowheezy/ai-buildflow/actions/workflows/validate.yml/badge.svg)](https://github.com/Nierowheezy/ai-buildflow/actions/workflows/validate.yml)
+[![MIT license](https://img.shields.io/npm/l/create-ai-buildflow?style=flat-square&color=155eef)](LICENSE)
+
+[Official site](https://ai-buildflow.dev.vercel.app) |
+[Documentation](https://ai-buildflow.dev.vercel.app/docs/) |
+[Repository](https://github.com/Nierowheezy/ai-buildflow) |
+[Changelog](https://github.com/Nierowheezy/ai-buildflow/blob/main/CHANGELOG.md)
+
+Requires Node.js 22 or newer. Run the installer from an application that has
+already been scaffolded and initialized as a Git repository.
+
+```bash
+npx create-ai-buildflow@latest
+```
+
+You can also use npm's initializer form:
+
+```bash
+npm create ai-buildflow@latest
+```
+
+The installer copies the BuildFlow workflow files into the current directory:
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `buildflow/config.json`
+- `buildflow/.state/manifest.json`
+- `.agents/`
+- `.claude/`
+- `buildflow/`
+
+It keeps the app's root `README.md` alone.
+
+## Core workflow
+
+BuildFlow starts with your plans, then repeats one controlled loop for every
+feature or fix:
+
+1. Run `/onboard` or `$onboard` to tune BuildFlow to the real project.
+2. Write `buildflow/project-plan.md` and `buildflow/build-plan.md` directly, or
+   use the optional discovery skill to develop them through conversation.
+3. Run `/overview` or `$overview` to generate durable project context. On the
+   first run, it offers a reviewed local commit for the BuildFlow setup and
+   plans.
+4. Run `/feature` or `$feature` for the next planned feature, or use the fix
+   skill for a focused bug or small change.
+5. Review the spec, then run `/implement` or `$implement` to build it in small,
+   visible steps.
+6. Run `/check` or `$check` to prove the behavior against the real app.
+7. Run `/complete` or `$complete` to archive the work and request merge
+   approval.
+
+Plans, current work, verification evidence, findings, and completed history stay
+in the repository, so another session or supported coding tool can continue
+from the same state.
+
+## Tool support
+
+| Tool | Installed adapter | Invocation |
+| --- | --- | --- |
+| Codex | `.agents/skills/` | `$feature`, `$implement`, or plain language |
+| Claude Code | `.claude/skills/` | `/feature`, `/implement`, and other slash commands |
+| GitHub Copilot | `AGENTS.md` and `.agents/skills/` | Ask Copilot to run the matching skill |
+| OpenCode | `AGENTS.md` and compatible `.agents/skills/` or `.claude/skills/` | Ask OpenCode to run the matching skill |
+| Other tools | `AGENTS.md` plus readable skill files | Ask the agent to follow the matching `SKILL.md` |
+
+If you install `--claude` or `--all` while Claude Code is already open in the
+project, restart Claude Code in that folder so the newly added project skills
+appear.
+
+## Options
+
+```bash
+npx create-ai-buildflow@latest -- --codex
+npx create-ai-buildflow@latest -- --claude
+npx create-ai-buildflow@latest -- --copilot
+npx create-ai-buildflow@latest -- --opencode
+npx create-ai-buildflow@latest -- --codex --opencode
+npx create-ai-buildflow@latest -- --all
+npx create-ai-buildflow@latest -- --both
+npx create-ai-buildflow@latest -- --force
+npx create-ai-buildflow@latest -- --target ./my-app
+```
+
+The same flags work with `npm create ai-buildflow@latest -- ...`.
+
+The interactive installer shows a checkbox list with all adapters selected by
+default. Adapter flags are composable, so scripts can select any combination.
+`--both` remains as a deprecated alias for `--all` and prints a warning. GitHub
+Copilot uses `AGENTS.md` and the shared `.agents/skills/` files; the installer
+does not manage `.github/copilot-instructions.md`. OpenCode reuses the compatible
+`.agents/skills/` or `.claude/skills/` tree instead of creating duplicate
+`.opencode/skills/` files.
+
+Use `--force` to overwrite existing BuildFlow files. Without `--force`, the
+installer asks before overwriting in an interactive terminal and exits in
+non-interactive runs.
+
+## Optional capabilities
+
+The core workflow stays focused. Use these capabilities when the project needs
+them:
+
+- `/brief` or `$brief` previews an upcoming build-plan feature before you spec
+  it.
+- `/debug` or `$debug` investigates a failure without editing code.
+- `/audit` and `/try`, or their Codex `$` forms, add code review and a human
+  walkthrough. `/audit independent current` prepares an approved checkpoint for
+  a selected fresh reviewer adapter and model, then records a staleness-checked
+  receipt.
+- `/tests` or `$tests` establishes unit testing. The optional `/ci` or `$ci` skill
+  defines one shared local and GitHub verification command from checks the
+  project already has.
+- `/browser-tests` or `$browser-tests` explicitly adds or normalizes a repeatable
+  browser harness, preferring an existing runner and otherwise using Playwright
+  for compatible projects. Check and Continuous Mode reuse its documented
+  command; installation never adds it automatically.
+- `/rollback` or `$rollback` plans a reviewed reversal from the archived spec
+  and exact feature commit without erasing history.
+- `/autopilot` or `$autopilot` runs one bounded feature or fix through its
+  configured gates, then stops before completion.
+- `/continuous` or `$continuous` processes the remaining reviewed build plan
+  serially with one local branch and commit per feature. It never pushes.
+- `/release` or `$release` prepares local Render or Vercel configuration and
+  release checks. It never deploys without separate approval.
+
+## Updating an existing installation
+
+Preview the update plan:
+
+```bash
+npx create-ai-buildflow@latest update --dry-run
+```
+
+Apply the update:
+
+```bash
+npx create-ai-buildflow@latest update
+```
+
+The updater detects the installed adapters and manages only these paths:
+
+- `.agents/skills/`
+- `.claude/skills/`
+
+It preserves `AGENTS.md`, `CLAUDE.md`, project configuration, project and build
+plans, context, history, references, and prototypes. An unchanged `buildflow/README.md` installed by an
+older version is removed during update; a locally modified copy keeps the normal
+conflict protection. The `buildflow/.state/manifest.json` file records the
+installed version and hashes of managed files.
+
+`buildflow/config.json` is user-owned project policy. It controls review cadence,
+checkpoint availability, branch prefixes, verification strictness, regular and
+Continuous quality gates, and Continuous Mode limits. Audit, independent-review,
+check, and try-guide gates all default to manual. A missing file uses built-in defaults;
+an invalid file is reported by status and blocks mutating workflow skills until
+`/doctor` identifies the repair. Configuration never grants permission to
+commit, merge, push, deploy, publish, or take destructive action. Only an
+explicit `/continuous` or `$continuous` request starts the multi-feature loop.
+
+## Context efficiency
+
+New installations keep Claude Code's automatic project imports focused on the
+core instructions, compact overview, and active spec. Coding standards and
+interaction rules load when the workflow needs them. New project configuration
+also defaults to one feature-level review packet with step checkpoint commits
+disabled.
+
+The updater preserves `CLAUDE.md` and `buildflow/config.json`, so existing
+projects do not receive those user-owned changes automatically. Run `/doctor` to
+identify the legacy direct imports and an oversized overview, remove the
+coding-standards and AI-interaction import lines it reports, rerun `/overview`
+when needed, and choose the lower-context defaults in `buildflow/config.json` if
+they fit the project:
+
+```json
+"workflow": {
+  "stepReview": "feature",
+  "checkpointCommits": "disabled"
+}
+```
+
+These settings are separate. `stepReview: "every"` restores the approval pause
+after each implementation step, but it does not enable checkpoint commit prompts.
+To match the previous workflow exactly, use:
+
+```json
+"workflow": {
+  "stepReview": "every",
+  "checkpointCommits": "enabled"
+}
+```
+
+Context savings from the compact overview, narrower Claude imports, and shorter
+skill descriptions still apply.
+
+Onboarding offers **Efficient**, **Guided**, and **Custom** implementation styles.
+They write only the existing `stepReview` and `checkpointCommits` values, so no
+additional mode is stored. You can edit either value later; the next Implement
+run uses the current configuration.
+
+Use `/context all` in Claude Code to inspect the live result. See the
+[controlled benchmark](https://github.com/Nierowheezy/ai-buildflow/blob/main/benchmarks/context-efficiency.md)
+for the two charts, exact results, method, and limits.
+
+Locally modified managed files are reported as conflicts. Interactive updates
+ask before replacing them. Non-interactive updates exit unless you pass
+`--force`, which backs up the conflicting files before replacement. Backups are
+stored under `buildflow/.state/backups/` and ignored by git.
+
+The first update of a legacy install creates the manifest. Files that already
+match the current package are adopted automatically. Differing files remain
+conflicts so local changes are not lost.
+
+## Checking project status
+
+Run the read-only status command from a BuildFlow project or any directory
+inside it:
+
+```bash
+npx create-ai-buildflow@latest status
+```
+
+It reports configuration state, recorded command activity, build-plan progress,
+active work, findings, independent-review state, Git state, drift warnings,
+completion blockers, and one
+suggested next action. Onboarding uses a dedicated setup marker, overview
+freshness uses a fingerprint of both plans, and a verified current-work status
+makes the completion gate ready. Running command activity overrides
+contradictory next-action advice, and an activity record that stops updating is
+shown as interrupted instead of running forever. For scripts and integrations,
+request the versioned JSON object:
+
+```bash
+npx create-ai-buildflow@latest status --json
+```
+
+After an interactive BuildFlow install or update, the installer checks the
+global CLI version. It offers to run the following command only when the CLI is
+missing or does not match the npx package version:
+
+```bash
+npm install --global create-ai-buildflow@latest
+```
+
+The prompt defaults to no and is skipped for matching versions, non-interactive
+runs, and `--yes` runs. Accepting it installs or refreshes the CLI at the same
+version used by the npx command. Global installation exposes the shorter forms
+`buildflow status`, `buildflow status --json`, and `buildflow dashboard`. Use
+`--target ./my-app` to inspect an explicit project directory. Status never edits
+project or Git state.
+
+## Opening the local dashboard
+
+Run the on-demand read-only dashboard from a BuildFlow project or any directory
+inside it:
+
+```bash
+buildflow dashboard
+```
+
+The command binds to `127.0.0.1` on an available port, opens the dashboard in
+your browser, and refreshes immediately when project or BuildFlow files change,
+with a ten-second fallback check. It does
+not edit project files, run workflow commands, start the application, or make
+the dashboard available outside the local machine. It leads with the suggested
+next action, then shows recorded command activity, active work and build steps,
+the build-plan roadmap, project and Git state, findings, completion blockers,
+and archived work. Autopilot and Continuous runs include their mode, progress,
+configured gates, local boundary, and safe resume command when one is available.
+Press Ctrl+C to stop it. Use `buildflow dashboard --no-open` when you want the
+URL without opening a browser. The older `buildflow ui` form remains as a
+deprecated alias.
+
+The optional global `buildflow` command is limited to read-only project status
+and this local dashboard. Continue to use `npx create-ai-buildflow@latest` for
+installation and `npx create-ai-buildflow@latest update` for managed workflow
+updates.
+
+## Help and contributing
+
+- Read the [full documentation](https://ai-buildflow.dev.vercel.app/docs/).
+- Report reproducible problems through the repository's
+  [issue forms](https://github.com/Nierowheezy/ai-buildflow/issues/new/choose).
+- Follow the repository's
+  [security policy](https://github.com/Nierowheezy/ai-buildflow/security/policy)
+  for private vulnerability reports.
+- Read the
+  [contribution guide](https://github.com/Nierowheezy/ai-buildflow/blob/main/CONTRIBUTING.md)
+  before opening a pull request.
+
+## License
+
+MIT

@@ -1,0 +1,59 @@
+{
+  "name": "create-ai-buildflow",
+  "version": "1.4.1",
+  "description": "A file-backed, spec-driven AI development workflow for Codex, Claude Code, GitHub Copilot, and OpenCode. Plan, build, verify, and document one feature at a time.",
+  "license": "MIT",
+  "author": "Olabode Olaniyi",
+  "type": "module",
+  "homepage": "https://ai-buildflow.dev.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nierowheezy/ai-buildflow.git",
+    "directory": "packages/create-ai-buildflow"
+  },
+  "bugs": {
+    "url": "https://github.com/Nierowheezy/ai-buildflow/issues"
+  },
+  "keywords": [
+    "ai",
+    "ai-coding",
+    "buildflow",
+    "codex",
+    "claude",
+    "claude-code",
+    "opencode",
+    "agent",
+    "context-engineering",
+    "spec-driven-development",
+    "workflow",
+    "scaffold"
+  ],
+  "bin": {
+    "create-ai-buildflow": "dist/bin/create-ai-buildflow.js",
+    "buildflow": "dist/bin/buildflow.js"
+  },
+  "dependencies": {
+    "@inquirer/checkbox": "^4.2.4"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsx --test test/build-plan.test.ts test/current-work.test.ts test/dashboard.test.ts test/findings.test.ts test/history.test.ts test/project-config.test.ts test/project-metadata.test.ts test/project-root.test.ts test/review.test.ts test/run-state.test.ts test/status.test.ts test/update.test.ts",
+    "check:pack": "npm pack --dry-run",
+    "prepare-template": "tsx scripts/prepare-template.ts",
+    "prepack": "npm run build && npm run prepare-template",
+    "postpack": "tsx scripts/clean-template.ts"
+  },
+  "files": [
+    "dist/",
+    "template/",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

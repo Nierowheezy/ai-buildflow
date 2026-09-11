@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: AI BuildFlow documentation
+    url: https://ai-buildflow.dev.vercel.app/docs/
+    about: Check the guides and command reference before opening an issue.
+  - name: Security vulnerability
+    url: https://github.com/Nierowheezy/ai-buildflow/security/advisories/new
+    about: Report suspected vulnerabilities privately. Do not open a public issue.

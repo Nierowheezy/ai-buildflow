@@ -1,0 +1,4 @@
+node_modules/
+.sandbox/
+packages/create-ai-buildflow/dist/
+scripts/e2e/runs/
